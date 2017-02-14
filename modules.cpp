@@ -3,6 +3,18 @@
 #define WIFI_INTERFACENAME "wlp3s0"
 #define VOLUME_SINK_ID "Sink #0"
 
+std::string getBarFromPercentage(int percent){
+    if(percent > 100){
+        return "X";
+    }
+    if(percent <= 0){
+        return " ";
+    }
+    //those bars are in the array ▁▂▃▄▅▆▇▉
+    string blocks [] = {"X","\u2581","\u2582","\u2583","\u2584","\u2585","\u2586","\u2587","\u2588"};
+    return blocks[(percent*8)/100];
+}    
+
 JSONObject myDate(){
     time_t time_now;
     time_now  = time(&time_now);
@@ -28,6 +40,18 @@ JSONObject myDate(){
     return date;
 }
 
+JSONObject myBacklight(){
+    string lighttext = getCommandResult("xbacklight");
+    lighttext = lighttext.substr(0, lighttext.find("."));
+    int li = stoi(lighttext);
+
+    JSONObject light;
+    string pre = "LGT ";
+    light.add("name","light");
+    light.add("full_text", pre + getBarFromPercentage(li));
+    return light;
+}
+
 JSONObject myVolume(){
     //from util.h
     string volumetext = getCommandResult("pactl list sinks");
@@ -37,6 +61,7 @@ JSONObject myVolume(){
 
     string sink = "";
     string volume = "";
+    string mute = "";
 
     //find the line containing my wifi interface and the Quality
     while(getline(ss,line,'\n')){
@@ -44,6 +69,9 @@ JSONObject myVolume(){
             sink = line;
         }
         if(sink.size() > 0){
+            if(line.find("Mute") != string::npos){
+                mute = line;
+            }
             if(line.find("Volume") != string::npos){
                 volume = line;
                 break;
@@ -52,19 +80,30 @@ JSONObject myVolume(){
     }
 
     volume = volume.substr(volume.find("%") - 3, 3);
-    volume = to_string(stoi(volume)); //strip off any spaces
+    int voli = stoi(volume);
+
+    size_t pos = mute.find(":");
+
     JSONObject vol;
-
-    string pre = "Vol: ";
+    string pre = "VOL ";
     vol.add("name","volume");
-    vol.add("full_text",pre + volume + "%");
+    if(mute.find("yes") != string::npos){
+        pre = "(vol)";
+        vol.add("color", "#ffff00");
+    }
+    vol.add("full_text",pre + getBarFromPercentage(voli));
 
+    if(voli > 100){
+        vol.add("color", "#ff0000");
+    }
     return vol;
 }
 
 JSONObject myWifi(){
     //from util.h
-    string wifitext = getCommandResult("iwconfig");
+    string cmd = "iwconfig ";
+    cmd += WIFI_INTERFACENAME;
+    string wifitext = getCommandResult(cmd);
 
     stringstream ss(wifitext);
     string line;
@@ -136,9 +175,7 @@ JSONObject myBat(){
     bat.add("markup","pango");
     bat.add("color","#00ff00");
     
-    //those bars are in the array ▁▂▃▄▅▆▇▉
-    string blocks [] = {"\u2581","\u2582","\u2583","\u2584","\u2585","\u2586","\u2587","\u2588"};
-
+    
     string battext = getCommandResult("acpi");
     size_t pos = battext.find("%");
 
@@ -148,7 +185,7 @@ JSONObject myBat(){
 
 
     if(battext.find("Full") != string::npos){
-        bat.add("full_text","<b>" + label + blocks[7] + status + "</b>");
+        bat.add("full_text","<b>" + label + getBarFromPercentage(100) + status + "</b>");
     }else{
         if(battext.find("Charging") != string::npos){
             status = "\u2b06";
@@ -157,7 +194,7 @@ JSONObject myBat(){
             status = "\u2b07";
         }
 
-        bat.add("full_text","<b>" + label + blocks[ind] + status + "</b>");
+        bat.add("full_text","<b>" + label + getBarFromPercentage(level) + status + "</b>");
 
         if(level < 75){
             bat.add("color","#ffff00");

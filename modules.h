@@ -13,3 +13,4 @@ JSONObject myDate();
 JSONObject myWifi();
 JSONObject myVolume();
 JSONObject myBat();
+JSONObject myBacklight();
